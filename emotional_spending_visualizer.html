@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Emotional Spending Visualizer</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --linen:      #F8F3EA;
+    --paper:      #EFE7DA;
+    --stone:      #C9C2B6;
+    --moss:       #5E735F;
+    --botanical:  #2F4A34;
+    --clay:       #B8745A;
+    --brass:      #A98C4E;
+    --brass-lt:   #DCB576;
+    --ink:        #1E2420;
+
+    --bg:         var(--linen);
+    --surface:    var(--paper);
+    --surface2:   #E8DFCF;
+    --border:     rgba(30,36,32,0.12);
+    --border-md:  rgba(30,36,32,0.22);
+    --text-primary: var(--ink);
+    --text-muted:   #5A564E;
+    --text-soft:    #8A857C;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text-primary);
+    min-height: 100vh;
+    padding: 2rem 1rem;
+  }
+
+  .page-wrap { max-width: 740px; margin: 0 auto; }
+
+  .page-header { margin-bottom: 1.5rem; }
+  .page-title { font-size: 22px; font-weight: 500; color: var(--botanical); margin-bottom: 4px; }
+  .page-sub { font-size: 14px; color: var(--text-muted); line-height: 1.6; }
+
+  /* Scenario bar */
+  .scenario-bar { display: flex; gap: 8px; margin-bottom: 1.5rem; }
+  .scenario-btn {
+    flex: 1; padding: 10px 8px;
+    border-radius: var(--radius-md);
+    border: 0.5px solid var(--border-md);
+    background: var(--surface);
+    cursor: pointer; font-size: 13px;
+    color: var(--text-muted); font-family: var(--font);
+    transition: all .2s; text-align: center; line-height: 1.6;
+  }
+  .scenario-btn:hover { background: var(--surface2); }
+  .scenario-btn.active {
+    border-color: var(--botanical);
+    background: #E2EBE3;
+    color: var(--botanical);
+    font-weight: 500;
+  }
+
+  /* Stats row */
+  .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 1.5rem; }
+  .stat-card { background: var(--surface); border-radius: var(--radius-md); padding: .75rem 1rem; border: 0.5px solid var(--border); }
+  .stat-label { font-size: 11px; color: var(--text-soft); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .stat-value { font-size: 22px; font-weight: 500; color: var(--text-primary); }
+  .stat-value.good  { color: var(--botanical); }
+  .stat-value.warn  { color: var(--brass); }
+  .stat-value.bad   { color: var(--clay); }
+
+  /* Main grid */
+  .main-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 1.5rem; }
+  @media (max-width: 520px) { .main-grid { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1rem 1.25rem;
+  }
+  .panel-title { font-size: 12px; font-weight: 500; color: var(--text-soft); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+
+  /* Bucket */
+  .bucket-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .bucket-svg-wrap { width: 100%; max-width: 168px; }
+
+  /* Leak list */
+  .leak-list { display: flex; flex-direction: column; gap: 9px; }
+  .leak-item { display: flex; align-items: center; gap: 7px; }
+  .leak-label { font-size: 11px; color: var(--text-muted); flex: 1.6; line-height: 1.3; }
+  .leak-bar-track { flex: 1.8; height: 5px; border-radius: 3px; background: var(--surface2); overflow: hidden; }
+  .leak-bar-fill { height: 100%; border-radius: 3px; transition: width .6s ease; }
+  .leak-amount { font-size: 11px; font-weight: 500; min-width: 36px; text-align: right; }
+  .leak-toggle {
+    width: 20px; height: 20px; border-radius: 50%;
+    border: 0.5px solid var(--border-md);
+    background: transparent; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; transition: all .2s; flex-shrink: 0;
+    font-family: var(--font);
+  }
+  .leak-toggle.patched { background: #E2EBE3; border-color: var(--moss); color: var(--botanical); }
+
+  /* Emotion grid */
+  .section-label { font-size: 12px; font-weight: 500; color: var(--text-soft); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .emotion-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 1.5rem; }
+  .emotion-chip {
+    padding: 8px 6px; border-radius: var(--radius-md);
+    border: 0.5px solid var(--border-md);
+    text-align: center; cursor: pointer;
+    transition: all .2s; background: var(--surface);
+  }
+  .emotion-chip .emo-icon { font-size: 18px; display: block; margin-bottom: 3px; }
+  .emotion-chip .emo-name { font-size: 11px; color: var(--text-muted); }
+  .emotion-chip.active { border-color: var(--clay); background: #F4E5DF; }
+  .emotion-chip.active .emo-name { color: var(--clay); }
+
+  /* Insight box */
+  .insight {
+    background: var(--surface);
+    border-left: 3px solid var(--brass-lt);
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+    padding: .75rem 1rem;
+    font-size: 13px; color: var(--text-muted);
+    line-height: 1.65; margin-bottom: 1.5rem;
+    transition: all .35s;
+    border-top: 0.5px solid var(--border);
+    border-bottom: 0.5px solid var(--border);
+    border-right: 0.5px solid var(--border);
+  }
+
+  /* Monthly savings graph */
+  .graph-panel {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+  }
+  .graph-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 1rem; flex-wrap: wrap; gap: 8px; }
+  .graph-title { font-size: 12px; font-weight: 500; color: var(--text-soft); text-transform: uppercase; letter-spacing: 0.05em; }
+  .graph-legend { display: flex; gap: 16px; }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-muted); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+  .chart-area { position: relative; width: 100%; height: 220px; }
+  canvas#savingsChart { width: 100% !important; height: 100% !important; }
+
+  .goal-footer { font-size: 12px; color: var(--text-soft); margin-top: 10px; padding-top: 10px; border-top: 0.5px solid var(--border); }
+</style>
+</head>
+<body>
+<div class="page-wrap">
+
+  <div class="page-header">
+    <div class="page-title">Emotional Spending Visualizer</div>
+    <div class="page-sub">See how emotional spending leaks your income — and how patching small habits builds lasting savings.</div>
+  </div>
+
+  <div class="container">
+
+    <!-- Scenario selector -->
+    <div style="font-size:12px;color:var(--text-soft);margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em;">Choose a spending profile:</div>
+    <div class="scenario-bar">
+      <div class="scenario-btn active" onclick="setScenario(0)">😟<br>Emotional spender</div>
+      <div class="scenario-btn" onclick="setScenario(1)">🔄<br>Making changes</div>
+      <div class="scenario-btn" onclick="setScenario(2)">✅<br>Logical spender</div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-label">Monthly income</div>
+        <div class="stat-value" id="stat-income">$3,500</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Leaking away</div>
+        <div class="stat-value bad" id="stat-leaks">$0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">To savings</div>
+        <div class="stat-value good" id="stat-savings">$0</div>
+      </div>
+    </div>
+
+    <!-- Bucket + Leaks -->
+    <div class="main-grid">
+      <div class="panel">
+        <div class="panel-title">Your financial bucket</div>
+        <div class="bucket-wrap">
+          <div class="bucket-svg-wrap">
+            <svg id="bucket-svg" viewBox="0 0 180 270" width="100%">
+              <defs>
+                <clipPath id="bucket-clip">
+                  <path d="M32 62 L22 228 Q22 236 32 236 L148 236 Q158 236 158 228 L148 62 Z"/>
+                </clipPath>
+                <style>
+                  .drip-drop { animation: drip-fall 1.2s ease-in infinite; }
+                  @keyframes drip-fall {
+                    0%   { transform: translateY(0); opacity: 0.85; }
+                    80%  { opacity: 0.6; }
+                    100% { transform: translateY(52px); opacity: 0; }
+                  }
+                </style>
+              </defs>
+
+              <!-- water fill -->
+              <rect id="water-fill" x="20" y="62" width="140" height="176" clip-path="url(#bucket-clip)" fill="#5E735F" opacity="0.28" style="transition:height 1s ease,y 1s ease;"/>
+              <!-- savings band at bottom -->
+              <rect id="savings-band" x="20" y="226" width="140" height="10" clip-path="url(#bucket-clip)" fill="#2F4A34" opacity="0.45" style="transition:height 1s ease,y 1s ease;"/>
+
+              <!-- bucket body outline (drawn before holes so outline is behind patch marks) -->
+              <path d="M32 62 L22 228 Q22 236 32 236 L148 236 Q158 236 158 228 L148 62 Z" fill="none" stroke="#1E2420" stroke-width="1.5" opacity="0.18"/>
+              <!-- bucket rim -->
+              <path d="M27 62 L153 62" stroke="#1E2420" stroke-width="2" stroke-linecap="round" opacity="0.18"/>
+              <!-- handle -->
+              <path d="M50 62 Q90 34 130 62" fill="none" stroke="#1E2420" stroke-width="1.8" stroke-linecap="round" opacity="0.15"/>
+
+              <!--
+                6 holes — left side (leaks 0,2,4) and right side (leaks 1,3,5)
+                Each hole group: id="hole-N", contains the ragged hole ellipse + patch overlay + drip drop
+                Holes are staggered vertically on both sides of the bucket wall.
+
+                Left wall x ≈ 26–34 (slanted), right wall x ≈ 146–154
+                Hole y positions (evenly spaced from ~100 to ~210):
+                  row0 y=105, row1 y=138, row2 y=170
+                  Left side: leaks 0,2,4   Right side: leaks 1,3,5
+              -->
+
+              <!-- HOLE 0 — left, top (leak 0) -->
+              <g id="hole-0">
+                <ellipse class="hole-shape" cx="29" cy="105" rx="6" ry="4.5" fill="#F8F3EA" stroke="#B8745A" stroke-width="1.2"/>
+                <ellipse class="hole-inner" cx="29" cy="105" rx="3.5" ry="2.5" fill="#C9C2B6" opacity="0.7"/>
+                <g class="drip-group">
+                  <ellipse class="drip-drop" cx="29" cy="112" rx="2.8" ry="3.8" fill="#B8745A" opacity="0.8" style="animation-delay:0s;"/>
+                </g>
+                <ellipse class="patch-mark" cx="29" cy="105" rx="7" ry="5" fill="#5E735F" opacity="0" style="transition:opacity .4s;"/>
+                <line class="patch-x1" x1="25" y1="101" x2="33" y2="109" stroke="#2F4A34" stroke-width="1.5" stroke-linecap="round" opacity="0" style="transition:opacity .4s;"/>
+                <line class="patch-x2" x1="33" y1="101" x2="25" y2="109" stroke="#2F4A34" stroke-width="1.5" stroke-linecap="round" opacity="0" style="transition:opacity .4s;"/>
+              </g>
+
+              <!-- HOLE 1 — right, top (leak 1) -->
+              <g id="hole-1">
+                <ellipse class="hole-shape" cx="151" cy="105" rx="6" ry="4.5" fill="#F8F3EA" stroke="#A98C4E" stroke-width="1.2"/>
+                <ellipse class="hole-inner" cx="151" cy="105" rx="3.5" ry="2.5" fill="#C9C2B6" opacity="0.7"/>
+                <g class="drip-group">
+                  <ellipse class="drip-drop" cx="151" cy="112" rx="2.8" ry="3.8" fill="#A98C4E" opacity="0.8" style="animation-delay:.4s;"/>
+                </g>
+                <ellipse class="patch-mark" cx="151" cy="105" rx="7" ry="5" fill="#5E735F" opacity="0" style="transition:opacity .4s;"/>
+                <line class="patch-x1" x1="147" y1="101" x2="155" y2="109" stroke="#2F4A34" stroke-width="1.5" stroke-linecap="round" opacity="0" style="transition:opacity .4s;"/>
+                <line class="patch-x2" x1="155" y1="101" x2="147" y2="109" stroke="#2F4A34" stroke-width="1.5" stroke-linecap="round" opacity="0" style="transition:opacity .4s;"/>
+              </g>
+
+              <!-- HOLE 2 — left, middle (leak 2) -->
+              <g id="hole-2">
+                <ellipse class="hole-shape" cx="27" cy="142" rx="6" ry="4.5" fill="#F8F3EA" stroke="#B8745A" stroke-width="1.2"/>
+                <ellipse class="hole-inner" cx="27" cy="142" rx="3.5" ry="2.5" fill="#C9C2B6" opacity="0.7"/>
+                <g class="drip-group">
+                  <ellipse class="drip-drop" cx="27" cy="149" rx="2.8" ry="3.8" fill="#B8745A" opacity="0.8" style="animation-delay:.7s;"/>
+                </g>
+                <ellipse class="patch-mark" cx="27" cy="142" rx="7" ry="5" fill="#5E735F" opacity="0" style="transition:opacity .4s;"/>
+                <line class="patch-x1" x1="23" y1="138" x2="31" y2="146" stroke="#2F4A34" stroke-width="1.5" stroke-linecap="round" opacity="0" style="transition:opacity .4s;"/>
+                <line class="patch-x2" x1="31" y1="138" x2="23" y2="146" stroke="#2F4A34" stroke-width="1.5" stroke-linecap="round" opacity="0" style="transition:opacity .4s;"/>
+              </g>
+
+              <!-- HOLE 3 — right, middle (leak 3) -->
+              <g id="hole-3">
+                <ellipse class="hole-shape" cx="153" cy="142" rx="6" ry="4.5" fill="#F8F3EA" stroke="#A98C4E" stroke-width="1.2"/>
+                <ellipse class="hole-inner" cx="153" cy="142" rx="3.5" ry="2.5" fill="#C9C2B6" opacity="0.7"/>
+                <g class="drip-group">
+                  <ellipse class="drip-drop" cx="153" cy="149" rx="2.8" ry="3.8" fill="#A98C4E" opacity="0.8" style="animation-delay:.2s;"/>
+                </g>
+                <ellipse class="patch-mark" cx="153" cy="142" rx="7" ry="5" fill="#5E735F" opacity="0" style="transition:opacity .4s;"/>
+                <line class="patch-x1" x1="149" y1="138" x2="157" y2="146" stroke="#2F4A34" stroke-width="1.5" stroke-linecap="round" opacity="0" style="transition:opacity .4s;"/>
+                <line class="patch-x2" x1="157" y1="138" x2="149" y2="146" stroke="#2F4A34" stroke-width="1.5" stroke-linecap="round" opacity="0" style="transition:opacity .4s;"/>
+              </g>
+
+              <!-- HOLE 4 — left, lower (leak 4) -->
+              <g id="hole-4">
+                <ellipse class="hole-shape" cx="26" cy="179" rx="6" ry="4.5" fill="#F8F3EA" stroke="#B8745A" stroke-width="1.2"/>
+                <ellipse class="hole-inner" cx="26" cy="179" rx="3.5" ry="2.5" fill="#C9C2B6" opacity="0.7"/>
+                <g class="drip-group">
+                  <ellipse class="drip-drop" cx="26" cy="186" rx="2.8" ry="3.8" fill="#B8745A" opacity="0.8" style="animation-delay:.9s;"/>
+                </g>
+                <ellipse class="patch-mark" cx="26" cy="179" rx="7" ry="5" fill="#5E735F" opacity="0" style="transition:opacity .4s;"/>
+                <line class="patch-x1" x1="22" y1="175" x2="30" y2="183" stroke="#2F4A34" stroke-width="1.5" stroke-linecap="round" opacity="0" style="transition:opacity .4s;"/>
+                <line class="patch-x2" x1="30" y1="175" x2="22" y2="183" stroke="#2F4A34" stroke-width="1.5" stroke-linecap="round" opacity="0" style="transition:opacity .4s;"/>
+              </g>
+
+              <!-- HOLE 5 — right, lower (leak 5) -->
+              <g id="hole-5">
+                <ellipse class="hole-shape" cx="154" cy="179" rx="6" ry="4.5" fill="#F8F3EA" stroke="#A98C4E" stroke-width="1.2"/>
+                <ellipse class="hole-inner" cx="154" cy="179" rx="3.5" ry="2.5" fill="#C9C2B6" opacity="0.7"/>
+                <g class="drip-group">
+                  <ellipse class="drip-drop" cx="154" cy="186" rx="2.8" ry="3.8" fill="#A98C4E" opacity="0.8" style="animation-delay:.5s;"/>
+                </g>
+                <ellipse class="patch-mark" cx="154" cy="179" rx="7" ry="5" fill="#5E735F" opacity="0" style="transition:opacity .4s;"/>
+                <line class="patch-x1" x1="150" y1="175" x2="158" y2="183" stroke="#2F4A34" stroke-width="1.5" stroke-linecap="round" opacity="0" style="transition:opacity .4s;"/>
+                <line class="patch-x2" x1="158" y1="175" x2="150" y2="183" stroke="#2F4A34" stroke-width="1.5" stroke-linecap="round" opacity="0" style="transition:opacity .4s;"/>
+              </g>
+
+              <!-- level text -->
+              <text id="level-pct" x="90" y="167" text-anchor="middle" font-size="18" font-weight="500" font-family="inherit" fill="#1E2420">0%</text>
+              <text x="90" y="185" text-anchor="middle" font-size="11" font-family="inherit" fill="#8A857C">saved</text>
+            </svg>
+          </div>
+          <div style="font-size:12px;color:var(--text-muted);text-align:center;line-height:1.55;" id="bucket-msg">
+            Emotional spending drains<br>your bucket faster than you fill it.
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">Financial leaks — tap to patch</div>
+        <div class="leak-list" id="leak-list"></div>
+      </div>
+    </div>
+
+    <!-- Monthly savings chart -->
+    <div class="graph-panel">
+      <div class="graph-header">
+        <div>
+          <div class="graph-title">Monthly savings — 12 month view</div>
+          <div style="font-size:12px;color:var(--text-soft);margin-top:3px;">Patch leaks to watch your monthly savings grow</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-soft);">
+          <div style="width:10px;height:10px;border-radius:2px;background:#2F4A34;flex-shrink:0;"></div>
+          Monthly savings
+        </div>
+      </div>
+      <div class="chart-area" style="height:240px;">
+        <canvas id="savingsChart"></canvas>
+      </div>
+      <div class="goal-footer" id="graph-footer">
+        Patch leaks above to see your monthly savings increase.
+      </div>
+    </div>
+
+    <!-- Emotion–Leak connection cards -->
+    <div class="section-label" style="margin-bottom:4px;">Emotional triggers → financial leaks</div>
+    <div style="font-size:12px;color:var(--text-soft);margin-bottom:12px;line-height:1.5;">Each leak has a root emotion. Control the emotion, patch the leak. Tap any card to learn the strategy.</div>
+    <div id="trigger-cards" style="display:flex;flex-direction:column;gap:8px;margin-bottom:1.5rem;"></div>
+
+    <div class="insight" id="insight-box" style="display:none;"></div>
+
+
+
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const INCOME = 3500;
+const BASE_EXPENSES = 2200;
+
+const scenarios = [
+  { leaks: [false,false,false,false,false,false] },
+  { leaks: [false,false,true, false,true, false] },
+  { leaks: [true, true, true, true, true, true]  },
+];
+
+const leakData = [
+  {
+    label: 'Impulse online shopping',
+    amount: 280, color: '#B8745A',
+    emotion: 'Anxiety', icon: '😰',
+    emotionDesc: 'When anxious, the brain seeks quick control. Adding items to a cart mimics decision-making and feels like agency — but it\'s false relief that leaves a real bill.',
+    strategy: 'Name the anxiety first. Write one sentence about what\'s worrying you. The urge to shop usually dissolves once the real feeling has been acknowledged.'
+  },
+  {
+    label: 'Food delivery when upset',
+    amount: 190, color: '#A98C4E',
+    emotion: 'Sadness', icon: '😔',
+    emotionDesc: 'Sadness lowers energy and motivation. Food delivery feels like self-care without effort — warm, immediate comfort that doesn\'t require leaving the house.',
+    strategy: 'Keep three easy comfort meals you can make at home. Reserve delivery for celebrations, not low moments — that reframe alone saves hundreds per year.'
+  },
+  {
+    label: 'Retail therapy after stress',
+    amount: 240, color: '#B8745A',
+    emotion: 'Stress', icon: '😤',
+    emotionDesc: 'Stress activates fight-or-flight. Buying something new triggers a dopamine hit that briefly overrides the cortisol — making shopping feel like relief when it isn\'t.',
+    strategy: 'Physical movement is the fastest proven cortisol reset. A 10-minute walk costs $0. Make it the rule: move before you spend.'
+  },
+  {
+    label: 'Unused subscriptions',
+    amount: 85, color: '#A98C4E',
+    emotion: 'Avoidance', icon: '🙈',
+    emotionDesc: 'Subscriptions persist through avoidance — cancelling feels like admin, so we ignore small charges. Individually invisible, they quietly drain $85+ each month.',
+    strategy: 'Set a monthly reminder: open your bank statement and cancel one unused subscription. Twelve months, up to $1,020+ back annually.'
+  },
+  {
+    label: 'Social pressure spending',
+    amount: 160, color: '#B8745A',
+    emotion: 'Fear of rejection', icon: '😟',
+    emotionDesc: 'Spending to fit in is driven by fear that saying no will cost us relationships. We overpay for experiences just to avoid the discomfort of being left out.',
+    strategy: '"I\'m saving for a goal right now" is a complete sentence. Real connections survive budget limits — and people respect honesty more than you expect.'
+  },
+  {
+    label: 'Late-night browsing buys',
+    amount: 130, color: '#A98C4E',
+    emotion: 'Loneliness', icon: '🌙',
+    emotionDesc: 'Late at night, the social world goes quiet and loneliness peaks. Scrolling product feeds simulates stimulation and connection — and purchases feel like a reward for the day.',
+    strategy: 'Remove saved payment info from shopping apps. The friction of entering card details manually breaks the impulse loop most of the time. Phone down by 10pm.'
+  },
+];
+
+let patchedState = [false,false,false,false,false,false];
+let savingsChart = null;
+let openCardIndex = -1;
+
+function totalLeaked() {
+  return leakData.reduce((s,l,i) => s + (patchedState[i] ? 0 : l.amount), 0);
+}
+function totalAllLeaked() {
+  return leakData.reduce((s,l) => s + l.amount, 0);
+}
+function monthlySaved(leaked) {
+  return Math.max(0, INCOME - BASE_EXPENSES - leaked);
+}
+
+function setScenario(idx) {
+  document.querySelectorAll('.scenario-btn').forEach((b,i) => b.classList.toggle('active', i===idx));
+  patchedState = [...scenarios[idx].leaks];
+  renderLeaks();
+  renderTriggerCards();
+  updateAll();
+}
+
+function renderTriggerCards() {
+  const container = document.getElementById('trigger-cards');
+  container.innerHTML = leakData.map((l, i) => {
+    const patched = patchedState[i];
+    const isOpen  = openCardIndex === i;
+    const borderCol = patched ? '#5E735F' : l.color;
+    const bgCol     = patched ? '#EEF3EE' : (i % 2 === 0 ? '#F8F3EA' : '#F3ECE1');
+
+    return `<div id="tcard-${i}" style="
+        border-radius:10px;
+        border:1px solid ${borderCol};
+        background:${bgCol};
+        overflow:hidden;
+        transition:border-color .35s,background .35s;
+      ">
+      <!-- Header row: always visible -->
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;" onclick="toggleCard(${i})">
+        <!-- Emotion pill -->
+        <div style="
+          display:flex;align-items:center;gap:5px;
+          background:${patched ? 'rgba(94,115,95,0.15)' : 'rgba(184,116,90,0.12)'};
+          border:0.5px solid ${patched ? '#5E735F' : l.color};
+          border-radius:999px;padding:3px 9px 3px 6px;
+          flex-shrink:0;
+        ">
+          <span style="font-size:14px;line-height:1;">${l.icon}</span>
+          <span style="font-size:11px;font-weight:500;color:${patched ? '#2F4A34' : '#5A564E'};white-space:nowrap;">${l.emotion}</span>
+        </div>
+        <!-- Arrow icon -->
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="flex-shrink:0;color:${l.color};">
+          <path d="M3 5L7 9L11 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+            style="transform-origin:7px 7px;transform:rotate(${isOpen?'180deg':'0deg'});transition:transform .25s;"/>
+        </svg>
+        <!-- Leak label -->
+        <span style="font-size:12px;color:${patched ? '#5E735F' : '#5A564E'};flex:1;${patched ? 'text-decoration:line-through;opacity:0.6;' : ''}">${l.label}</span>
+        <!-- Amount -->
+        <span style="font-size:12px;font-weight:500;color:${patched ? '#2F4A34' : l.color};flex-shrink:0;">
+          ${patched ? 'Patched' : '-$'+l.amount+'/mo'}
+        </span>
+        <!-- Patch toggle -->
+        <button onclick="event.stopPropagation();togglePatch(${i})" style="
+          flex-shrink:0;width:24px;height:24px;border-radius:50%;
+          border:0.5px solid ${patched ? '#5E735F' : 'rgba(30,36,32,0.22)'};
+          background:${patched ? '#E2EBE3' : 'transparent'};
+          color:${patched ? '#2F4A34' : '#8A857C'};
+          cursor:pointer;font-size:11px;
+          display:flex;align-items:center;justify-content:center;
+          transition:all .25s;font-family:inherit;
+        ">${patched ? '✓' : '✕'}</button>
+      </div>
+
+      <!-- Expandable body -->
+      <div style="display:${isOpen ? 'block' : 'none'};border-top:0.5px solid ${patched ? 'rgba(94,115,95,0.25)' : 'rgba(30,36,32,0.1)'};padding:12px 14px 14px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <!-- Emotion side -->
+          <div>
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:${l.color};font-weight:500;margin-bottom:5px;">The emotion</div>
+            <div style="font-size:12px;color:#5A564E;line-height:1.55;">${l.emotionDesc}</div>
+          </div>
+          <!-- Strategy side -->
+          <div style="background:${patched ? 'rgba(47,74,52,0.08)' : 'rgba(169,140,78,0.08)'};border-radius:8px;padding:10px;">
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:${patched ? '#2F4A34' : '#A98C4E'};font-weight:500;margin-bottom:5px;">The fix</div>
+            <div style="font-size:12px;color:#5A564E;line-height:1.55;">${l.strategy}</div>
+          </div>
+        </div>
+        <!-- Impact row -->
+        <div style="margin-top:10px;padding-top:10px;border-top:0.5px solid rgba(30,36,32,0.08);display:flex;align-items:center;justify-content:space-between;">
+          <span style="font-size:11px;color:#8A857C;">Monthly leak</span>
+          <span style="font-size:13px;font-weight:500;color:${patched ? '#2F4A34' : l.color};">${patched ? '$0 saved ✓' : '$'+l.amount+' lost'}</span>
+          <span style="font-size:11px;color:#8A857C;">Annual impact</span>
+          <span style="font-size:13px;font-weight:500;color:${patched ? '#2F4A34' : l.color};">${patched ? '+$'+(l.amount*12)+' kept' : '-$'+(l.amount*12)+' lost'}</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleCard(i) {
+  openCardIndex = openCardIndex === i ? -1 : i;
+  renderTriggerCards();
+}
+
+function renderLeaks() {
+  const list = document.getElementById('leak-list');
+  list.innerHTML = leakData.map((l,i) => {
+    const patched = patchedState[i];
+    const pct = Math.round((l.amount / 300) * 100);
+    return `<div class="leak-item">
+      <div class="leak-bar-track">
+        <div class="leak-bar-fill" style="width:${patched?0:pct}%;background:${patched?'#5E735F':l.color};"></div>
+      </div>
+      <div class="leak-label" style="${patched?'text-decoration:line-through;opacity:0.45':''}">${l.label}</div>
+      <div class="leak-amount" style="color:${patched?'#5E735F':l.color}">${patched?'$0':'$'+l.amount}</div>
+      <button class="leak-toggle ${patched?'patched':''}" onclick="togglePatch(${i})">${patched?'✓':'✕'}</button>
+    </div>`;
+  }).join('');
+}
+
+function togglePatch(i) {
+  patchedState[i] = !patchedState[i];
+  renderLeaks();
+  renderTriggerCards();
+  updateAll();
+}
+
+function updateAll() {
+  const leaked = totalLeaked();
+  const saved  = monthlySaved(leaked);
+  const pct    = Math.round((saved / INCOME) * 100);
+
+  document.getElementById('stat-leaks').textContent   = '$' + leaked;
+  document.getElementById('stat-savings').textContent = '$' + saved;
+
+  const leakEl = document.getElementById('stat-leaks');
+  leakEl.className = 'stat-value ' + (leaked > 500 ? 'bad' : leaked > 200 ? 'warn' : 'good');
+  const saveEl = document.getElementById('stat-savings');
+  saveEl.className = 'stat-value ' + (saved > 400 ? 'good' : saved > 100 ? 'warn' : 'bad');
+
+  // Bucket water level
+  const waterPct = Math.min(92, Math.max(6, pct * 2.8));
+  const bucketH  = 168;
+  const fillH    = Math.round((waterPct / 100) * bucketH);
+  const yPos     = 62 + (bucketH - fillH);
+  const wf = document.getElementById('water-fill');
+  wf.setAttribute('height', fillH);
+  wf.setAttribute('y', yPos);
+  const sb = document.getElementById('savings-band');
+  const bandH = Math.max(0, Math.round(fillH * 0.18));
+  sb.setAttribute('height', bandH);
+  sb.setAttribute('y', 230 - bandH);
+  document.getElementById('level-pct').textContent = pct + '%';
+
+  const allPatched = patchedState.every(Boolean);
+
+  // Update each hole individually
+  patchedState.forEach((patched, i) => {
+    const holeG = document.getElementById('hole-' + i);
+    if (!holeG) return;
+    const dripGroup = holeG.querySelector('.drip-group');
+    const patchMark = holeG.querySelector('.patch-mark');
+    const px1 = holeG.querySelector('.patch-x1');
+    const px2 = holeG.querySelector('.patch-x2');
+    const holeShape = holeG.querySelector('.hole-shape');
+    const holeInner = holeG.querySelector('.hole-inner');
+
+    if (patched) {
+      // Seal: hide hole, stop drip, show green patch
+      dripGroup.style.opacity = '0';
+      dripGroup.style.pointerEvents = 'none';
+      holeShape.style.opacity = '0.15';
+      holeInner.style.opacity = '0';
+      patchMark.style.opacity = '0.85';
+      px1.style.opacity = '1';
+      px2.style.opacity = '1';
+    } else {
+      // Open: show hole and drip, hide patch
+      dripGroup.style.opacity = '1';
+      holeShape.style.opacity = '1';
+      holeInner.style.opacity = '0.7';
+      patchMark.style.opacity = '0';
+      px1.style.opacity = '0';
+      px2.style.opacity = '0';
+    }
+  });
+
+  const patchedCount = patchedState.filter(Boolean).length;
+  const msgs = [
+    'Emotional spending drains<br>your bucket faster than you fill it.',
+    'You\'re patching leaks. Keep going —<br>the bucket is filling up.',
+    'No leaks! Your bucket fills steadily.<br>Goals are within reach.'
+  ];
+  document.getElementById('bucket-msg').innerHTML =
+    patchedCount === 6 ? msgs[2] : patchedCount >= 3 ? msgs[1] : msgs[0];
+
+  updateChart(saved);
+}
+
+function updateChart(currentMonthlySaved) {
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  // Cumulative: each month adds another month's savings on top
+  const data = MONTHS.map((_, i) => currentMonthlySaved * (i + 1));
+  const annualTotal = currentMonthlySaved * 12;
+  const yMax = 17000;
+
+  document.getElementById('graph-footer').textContent =
+    currentMonthlySaved === 0
+      ? 'No savings possible with current leaks. Patch at least one to start building.'
+      : `Cumulative total by December: $${annualTotal.toLocaleString()} — saving $${currentMonthlySaved}/month.`;
+
+  // Plugin: always reads live data directly from chart.data so labels update on every repaint
+  const valueLabelsPlugin = {
+    id: 'valueLabels',
+    afterDatasetsDraw(chart) {
+      const { ctx } = chart;
+      const meta = chart.getDatasetMeta(0);
+      const liveData = chart.data.datasets[0].data;
+      const chartW = chart.width;
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      meta.data.forEach((bar, i) => {
+        const val = liveData[i];
+        if (!val || val === 0) return;
+        const skip = chartW < 480 && i % 2 !== 0 && i !== 11;
+        if (skip) return;
+        const isLast = i === 11;
+        ctx.font = (isLast ? '600' : '500') + ' 10px ' + getComputedStyle(document.body).fontFamily;
+        ctx.fillStyle = isLast ? '#2F4A34' : '#5E735F';
+        ctx.fillText('$' + val.toLocaleString(), bar.x, bar.y - 4);
+      });
+      ctx.restore();
+    }
+  };
+
+  // Register plugin globally once so it persists across all chart.update() calls
+  if (!Chart.registry.plugins.get('valueLabels')) {
+    Chart.register(valueLabelsPlugin);
+  }
+
+  if (savingsChart) {
+    savingsChart.data.datasets[0].data = data;
+    // Shade the last bar darker to highlight year-end total
+    savingsChart.data.datasets[0].backgroundColor = data.map((_, i) =>
+      i === 11 ? 'rgba(47,74,52,0.92)' : 'rgba(47,74,52,0.55)'
+    );
+    savingsChart.data.datasets[0].borderColor = data.map((_, i) =>
+      i === 11 ? '#2F4A34' : '#5E735F'
+    );
+    savingsChart.update('active');
+    return;
+  }
+
+  const ctx = document.getElementById('savingsChart').getContext('2d');
+  savingsChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: MONTHS,
+      datasets: [{
+        label: 'Cumulative savings',
+        data,
+        backgroundColor: data.map((_, i) =>
+          i === 11 ? 'rgba(47,74,52,0.92)' : 'rgba(47,74,52,0.55)'
+        ),
+        borderColor: data.map((_, i) =>
+          i === 11 ? '#2F4A34' : '#5E735F'
+        ),
+        borderWidth: 1,
+        borderRadius: 4,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 450, easing: 'easeInOutQuart' },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: items => items[0].label,
+            label: c => {
+              const monthly = currentMonthlySaved;
+              return [
+                ' Cumulative: $' + c.raw.toLocaleString(),
+                ' Monthly added: $' + monthly.toLocaleString(),
+              ];
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { color: '#8A857C', font: { size: 11, family: 'inherit' } },
+          border: { color: 'rgba(30,36,32,0.15)' }
+        },
+        y: {
+          beginAtZero: true,
+          max: yMax,
+          grid: { color: 'rgba(30,36,32,0.07)' },
+          border: { display: false },
+          ticks: {
+            color: '#8A857C',
+            font: { size: 11, family: 'inherit' },
+            maxTicksLimit: 6,
+            callback: v => '$' + (v >= 1000 ? (v / 1000) + 'k' : v)
+          }
+        }
+      },
+      layout: { padding: { top: 28 } }
+    }
+  });
+}
+
+// Init
+renderLeaks();
+renderTriggerCards();
+updateAll();
+</script>
+</body>
+</html>
